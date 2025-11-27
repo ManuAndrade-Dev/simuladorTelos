@@ -296,61 +296,103 @@ console.log(`f) Órgão com mais repasses falhados: ${orgaoMaisFalha[0]} - ${org
 // g) Motivo de falha com mais repasses
 const porMotivoFalha = agruparPor(falha, "motivo");
 const motivoMaisFalha = Object.entries(porMotivoFalha).reduce((max, [motivo, lista]) => lista.length > max[1].length ? [motivo, lista] : max, ["", []]);
-console.log(`g) Motivo de falha com mais repasses: ${motivoMaisFalha[0]} - ${motivoMaisFalha[1].length} repasses\n`);
+console.log(`g) Motivo de falha com mais repasses: ${motivoMaisFalha[0]} - ${motivoMaisFalha[1].length} repasses`);
 
-//Historia do usuario 4 - Apresentação automática de detalhes de transações
-const orgaoAlvo = "Polícia Federal";
-
-// Filtrar transações do órgão alvo
-const transacoesOrgao = dadosJSON.filter(t => t.orgao === orgaoAlvo);
-
-// Exibir resultados no console
-console.log(`Detalhes das transações do órgão: ${orgaoAlvo}\n`);
-
-if (transacoesOrgao.length === 0) {
-  console.log("Nenhuma transação encontrada para este órgão.\n");
-} else {
-  transacoesOrgao.forEach(t => {
-    let detalhes = `Data: ${t.data}, Valor: ${formatarMoeda(t.valor)}, Status: ${t.status}`;
-    if (t.status === "falha") {
-      detalhes += t.motivo ? `, Motivo: ${t.motivo}` : `, Motivo: NÃO INFORMADO ⚠️`;
-    }
-    console.log(detalhes);
-  });
+// Utilitários
+function formatarMoeda(valor) {
+  return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function toArray(maybeStringOrArray, nome) {
+  if (Array.isArray(maybeStringOrArray)) return maybeStringOrArray;
+  try {
+    const arr = JSON.parse(maybeStringOrArray);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    console.error(`Erro ao converter ${nome}:`, e.message);
+    return [];
+  }
 }
 
-//Historia de usuario 5 - Tratamento de erros
+// ---------- Massa nova (H4) ----------
+const dadosMEC = `[{"orgao":"MEC","data":"01/01/2024","valor":500.00,"status":"sucesso"},
+{"orgao":"Ministério da Saúde","data":"03/01/2024","valor":750.00,"status":"sucesso"},
+{"orgao":"MEC","data":"05/01/2024","valor":1000.00,"status":"sucesso"},
+{"orgao":"Ministério da Educação","data":"08/01/2024","valor":600.00,"status":"sucesso"},
+{"orgao":"Ministério da Saúde","data":"10/01/2024","valor":900.00,"status":"sucesso"},
+{"orgao":"Ministério da Educação","data":"12/01/2024","valor":300.00,"status":"falha","motivo":"dados inválidos"},
+{"orgao":"Ministério da Saúde","data":"15/01/2024","valor":1200.00,"status":"sucesso"},
+{"orgao":"MEC","data":"17/01/2024","valor":800.00,"status":"falha","motivo":"falta de verba"},
+{"orgao":"Ministério da Educação","data":"20/01/2024","valor":400.00,"status":"falha","motivo":"falta de limite"},
+{"orgao":"MEC","data":"22/01/2024","valor":1100.00,"status":"falha"}]`;
 
-// Filtrar transações com falha sem motivo
-const errosProcessamento = falha.filter(t => !t.motivo || t.motivo.trim() === "");
+// H4: Criar massa única
+const arrJSON = Array.isArray(dadosJSON) ? dadosJSON : JSON.parse(dadosJSON);
+const arrMEC  = JSON.parse(dadosMEC);
 
-// Exibir resultados
-console.log("\nVerificação de tratamento de erros. Foram encontradas falhas sem motivo justificado?\n");
+// ÚNICA CONSTANTE a partir da H4
+const dadosMIX = [...arrJSON, ...arrMEC];
 
-if (errosProcessamento.length === 0) {
-  console.log("✅ Nenhum problema encontrado. Todas as falhas possuem motivo.\n");
-} else {
-  console.log("⚠️ Problemas encontrados no processamento:\n");
-  errosProcessamento.forEach(t => {
-    console.log(
-      `Órgão: ${t.orgao}, Data: ${t.data}, Valor: ${formatarMoeda(t.valor)}, Status: ${t.status}, Motivo: NÃO INFORMADO ⚠️`
-    );
-  });
-}
+console.log(`\nForam encontrados novos repasses, total geral de repasses: ${dadosMIX.length}\n`);
 
-// História de Usuário 6: Ajustes nas estatísticas
+const orgaoAlvo = "MEC";
+const transacoesOrgao = dadosMIX.filter(t => t.orgao === orgaoAlvo);
 
-// Criar lista filtrada (apenas válidas)
-const dadosValidos = dadosJSON.filter(t => !(t.status === "falha" && (!t.motivo || t.motivo.trim() === "")));
-
-// Separar sucesso e falha apenas das válidas
-const sucessoValidos = dadosValidos.filter(d => d.status === "sucesso");
-const falhaValidos = dadosValidos.filter(d => d.status === "falha");
-
-// Exemplo de saída para conferência
-console.log("Ajustes nas estatísticas\n");
-console.log(`Total de transações válidas: ${dadosValidos.length}`);
-console.log(`Total de transações de sucesso: ${sucessoValidos.length}`);
-console.log(`Total de transações de falha (com motivo): ${falhaValidos.length}`);
+console.log(`Repasses do órgão ${orgaoAlvo}:`);
+transacoesOrgao.forEach(t => {
+  let detalhes = `Data: ${t.data}, Valor: ${formatarMoeda(t.valor)}, Status: ${t.status}`;
+  if (t.status === "falha") {
+    detalhes += t.motivo ? `, Motivo: ${t.motivo}` : `, Motivo: NÃO INFORMADO ⚠️`;
+  }
+  console.log(detalhes);
+});
 console.log();
 
+// H5: Tratamento de erros (falha sem motivo)
+console.log("Tratamento de erros — repasses com FALHA sem MOTIVO\n");
+
+// Considera problema quando status = "falha" e motivo ausente/vazio
+const problemasProcessamento = dadosMIX.filter(t =>
+  String(t.status).toLowerCase() === "falha" &&
+  (!t.motivo || String(t.motivo).trim() === "")
+);
+
+if (problemasProcessamento.length === 0) {
+  console.log("✅ Nenhum problema de processamento encontrado (todas as falhas possuem motivo).\n");
+} else {
+  console.log(`⚠️ Problemas de processamento encontrados: ${problemasProcessamento.length}\n`);
+  problemasProcessamento.forEach(t => {
+    console.log(
+      `Órgão: ${t.orgao}, Data: ${t.data}, Valor: ${formatarMoeda(t.valor)}, ` +
+      `Status: ${t.status}, Motivo da falha: NÃO INFORMADO ⚠️`
+    );
+  });
+  console.log();
+}
+
+// H6: Estatísticas sem considerar inválidas
+console.log("Estatísticas ajustadas (ignorando repasses inválidos)\n");
+
+// Válidas = sucesso + falha COM motivo
+const transacoesValidas = dadosMIX.filter(
+  t => t.status === "sucesso" || (t.status === "falha" && t.motivo && t.motivo.trim() !== "")
+);
+
+const totalGeral = dadosMIX.length;
+const totalValidas = transacoesValidas.length;
+const totalInvalidas = totalGeral - totalValidas;
+
+const sucessoValidas = transacoesValidas.filter(t => t.status === "sucesso").length;
+const falhaValidas   = transacoesValidas.filter(t => t.status === "falha").length;
+
+const somaValoresValidos = transacoesValidas.reduce((acc, t) => acc + Number(t.valor || 0), 0);
+const mediaValoresValidos = totalValidas > 0 ? somaValoresValidos / totalValidas : 0;
+const percentualSucesso = totalValidas > 0 ? (sucessoValidas / totalValidas) * 100 : 0;
+
+console.log(`Total de repasses (geral): ${totalGeral}`);
+console.log(`Total de repasses válidos: ${totalValidas}`);
+console.log(`Total de repasses inválidos: ${totalInvalidas}`);
+console.log(`— Sucesso válidos: ${sucessoValidas}`);
+console.log(`— Falha válidos (com motivo): ${falhaValidas}`);
+console.log(`Soma dos valores válidos: ${formatarMoeda(somaValoresValidos)}`);
+console.log(`Média dos valores válidos: ${formatarMoeda(mediaValoresValidos)}`);
+console.log(`Percentual de sucesso (entre válidos): ${percentualSucesso.toFixed(2)}%\n`);
